@@ -1,14 +1,11 @@
 import { defineConfig, loadEnv } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { nitro } from "nitro/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig(({ command, mode }) => {
-  if (command === "build") {
-    process.env.NITRO_PRESET = "vercel";
-  }
-
   const envDefine: Record<string, string> = {};
   for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), "VITE_"))) {
     envDefine[`import.meta.env.${key}`] = JSON.stringify(value);
@@ -61,6 +58,7 @@ export default defineConfig(({ command, mode }) => {
         },
         server: { entry: "server" },
       }),
+      nitro({ preset: "vercel" }),
       viteReact(),
     ],
   };
