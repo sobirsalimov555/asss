@@ -67,7 +67,7 @@ function Mocks() {
         <h1 className="font-display text-5xl md:text-6xl rule-gold mt-3">
           Sit the real thing
         </h1>
-        <p className="mt-4 text-muted-foreground max-w-2xl text-[15px] leading-relaxed">
+        <p className="mt-4 text-muted-foreground max-w-2xl text-base leading-relaxed">
           Four modules, official SAT timing — Reading &amp; Writing 32+32 min, Math 35+35 min,
           with a 10-minute break between sections. Sign in before starting to save your score.
         </p>

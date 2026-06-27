@@ -70,7 +70,7 @@ function Leaderboard() {
           </div>
         ) : (
           <div className="mt-10 card-elegant overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-base">
               <thead className="bg-muted/50 text-left">
                 <tr className="border-b border-border">
                   <th className="px-4 py-3 w-16 crest">Rank</th>

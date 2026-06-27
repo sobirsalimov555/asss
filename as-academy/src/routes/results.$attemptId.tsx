@@ -164,7 +164,7 @@ function ResultView() {
               <div className="card-elegant p-6">
                 <p className="crest text-accent">Math</p>
                 <p className="font-display text-3xl mt-2">{mathCorrect}/{mathTotal}</p>
-                <p className="text-xs text-muted-foreground mt-1">correct</p>
+                <p className="text-sm text-muted-foreground mt-1">correct</p>
               </div>
             </div>
 
@@ -227,7 +227,7 @@ function ResultView() {
                           />
                         )}
 
-                        <p className="font-question text-lg leading-relaxed">{q.prompt}</p>
+                        <p className="font-question text-xl leading-relaxed">{q.prompt}</p>
 
                         <div className="mt-4 space-y-1.5">
                           {q.choices.map((c, idx) => {
@@ -237,7 +237,7 @@ function ResultView() {
                               <div
                                 key={idx}
                                 className={cn(
-                                  "flex items-start gap-3 p-3 rounded text-sm",
+                                  "flex items-start gap-3 p-3 rounded text-base",
                                   isCorrectChoice
                                     ? "bg-correct/10 text-foreground"
                                     : isPicked && !isCorrectChoice
@@ -247,7 +247,7 @@ function ResultView() {
                               >
                                 <span
                                   className={cn(
-                                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0",
+                                    "w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium shrink-0",
                                     isCorrectChoice
                                       ? "bg-correct text-white"
                                       : isPicked && !isCorrectChoice
@@ -257,7 +257,7 @@ function ResultView() {
                                 >
                                   {String.fromCharCode(65 + idx)}
                                 </span>
-                                <span className="pt-0.5">{c}</span>
+                                <span className="pt-0.5 text-base">{c}</span>
                               </div>
                             );
                           })}
@@ -266,7 +266,7 @@ function ResultView() {
                         {q.explanation && (
                           <div className="mt-4 border-l-2 border-accent pl-4">
                             <p className="crest mb-1">Explanation</p>
-                            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                            <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-wrap">
                               {q.explanation}
                             </p>
                           </div>

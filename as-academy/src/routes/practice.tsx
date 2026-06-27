@@ -193,7 +193,7 @@ function QuestionBank() {
                         )}
                         {q.topic && <span className="text-muted-foreground">· {q.topic}</span>}
                       </div>
-                      <p className="text-sm line-clamp-2">
+                      <p className="text-base line-clamp-2">
                         <b>Q{i + 1}.</b> {q.prompt}
                       </p>
                     </button>
@@ -280,7 +280,7 @@ function QuestionPreview({ question }: { question: BankQuestion }) {
           className="mb-4 max-h-64 w-full object-contain rounded border"
         />
       )}
-      <p className="font-display text-xl leading-snug whitespace-pre-wrap">{question.prompt}</p>
+      <p className="font-display text-2xl leading-snug whitespace-pre-wrap">{question.prompt}</p>
 
       <div className="mt-6 space-y-2">
         {question.choices.map((c, i) => (
@@ -288,10 +288,10 @@ function QuestionPreview({ question }: { question: BankQuestion }) {
             key={i}
             className="w-full text-left flex items-start gap-3 p-4 rounded border border-border opacity-80"
           >
-            <span className="font-display text-sm w-6 shrink-0">
+            <span className="font-display text-base w-7 shrink-0">
               {String.fromCharCode(65 + i)}.
             </span>
-            <span className="text-sm">{c}</span>
+            <span className="text-base">{c}</span>
           </div>
         ))}
       </div>
@@ -369,7 +369,7 @@ function QuestionAttempt({
           className="mb-4 max-h-64 w-full object-contain rounded border"
         />
       )}
-      <p className="font-display text-xl leading-snug whitespace-pre-wrap">{question.prompt}</p>
+      <p className="font-display text-2xl leading-snug whitespace-pre-wrap">{question.prompt}</p>
 
       <div className="mt-6 space-y-2">
         {question.choices.map((c, i) => {
@@ -391,10 +391,10 @@ function QuestionAttempt({
                       : "border-border hover:border-foreground/40"
               }`}
             >
-              <span className="font-display text-sm w-6 shrink-0">
+              <span className="font-display text-base w-7 shrink-0">
                 {String.fromCharCode(65 + i)}.
               </span>
-              <span className="text-sm">{c}</span>
+              <span className="text-base">{c}</span>
             </button>
           );
         })}
