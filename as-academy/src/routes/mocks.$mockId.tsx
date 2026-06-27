@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteNav } from "@/components/site-nav";
 import { useAuth } from "@/hooks/use-auth";
@@ -54,7 +54,7 @@ function TakeMock() {
     },
   });
 
-  const { data: items } = useQuery({
+  const { data: items, isLoading: itemsLoading } = useQuery({
     queryKey: ["mock-questions", mockId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -79,6 +79,8 @@ function TakeMock() {
   // Flow: 'intro' -> module 0 -> break -> module 1 -> ... -> 'done'
   const [stage, setStage] = useState<"intro" | "module" | "break" | "submitting" | "done">("intro");
   const [moduleIdx, setModuleIdx] = useState(0);
+  const moduleIdxRef = useRef(moduleIdx);
+  moduleIdxRef.current = moduleIdx;
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -110,16 +112,16 @@ function TakeMock() {
   }
 
   function advanceModule() {
-    if (moduleIdx === 1) {
-      // After RW2, take the break
+    const idx = moduleIdxRef.current;
+    if (idx === 1) {
       setStage("break");
       return;
     }
-    if (moduleIdx >= 3) {
+    if (idx >= 3) {
       void finalize();
       return;
     }
-    const next = moduleIdx + 1;
+    const next = idx + 1;
     setModuleIdx(next);
     setSecondsLeft(MODULES[next].minutes * 60);
     setStage("module");
@@ -289,13 +291,20 @@ function TakeMock() {
                 <Link to="/auth">Sign in to begin</Link>
               </Button>
             </div>
-          ) : (
+          ) : itemsLoading ? (
+            <p className="mt-8 text-muted-foreground">Loading questions…</p>
+          ) : items && items.length > 0 ? (
             <Button
               onClick={startMock}
               className="mt-8 bg-primary text-primary-foreground h-12 px-7"
             >
               Begin mock
             </Button>
+          ) : (
+            <div className="mt-8 card-elegant p-6">
+              <p className="font-display text-xl">This mock has no questions yet.</p>
+              <p className="text-sm text-muted-foreground mt-1">An administrator needs to attach questions.</p>
+            </div>
           )}
         </main>
       </>
