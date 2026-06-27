@@ -268,7 +268,7 @@ GRANT INSERT, UPDATE, DELETE ON public.mock_tests TO authenticated;
 GRANT ALL ON public.mock_tests TO service_role;
 
 GRANT SELECT ON public.questions TO authenticated;
-GRANT SELECT (id, test_id, position, prompt, choices, points, created_at, module, difficulty, topic, in_bank, subject)
+GRANT SELECT (id, test_id, position, prompt, choices, points, created_at, module, difficulty, topic, in_bank, subject, image_url)
   ON public.questions TO anon;
 GRANT INSERT, UPDATE, DELETE ON public.questions TO authenticated;
 GRANT ALL ON public.questions TO service_role;
