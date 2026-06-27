@@ -1,27 +1,28 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteNav } from "@/components/site-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/mocks/$mockId")({
   head: () => ({ meta: [{ title: "Mock Test — AS Academy" }] }),
   component: TakeMock,
 });
 
-// Official SAT digital module timings (minutes)
 const MODULES = [
-  { key: "rw1", label: "Reading & Writing — Module 1", minutes: 32 },
-  { key: "rw2", label: "Reading & Writing — Module 2", minutes: 32 },
-  { key: "math1", label: "Math — Module 1", minutes: 35 },
-  { key: "math2", label: "Math — Module 2", minutes: 35 },
-] as const;
+  { key: "rw1" as const, label: "Reading & Writing — Module 1", minutes: 32 },
+  { key: "rw2" as const, label: "Reading & Writing — Module 2", minutes: 32 },
+  { key: "math1" as const, label: "Math — Module 1", minutes: 35 },
+  { key: "math2" as const, label: "Math — Module 2", minutes: 35 },
+];
 
 type ModuleKey = (typeof MODULES)[number]["key"];
+type Stage = "intro" | "module" | "break" | "confirm" | "submitting" | "done";
 
 type MQ = {
   id: string;
@@ -76,29 +77,55 @@ function TakeMock() {
     return m;
   }, [items]);
 
-  // Flow: 'intro' -> module 0 -> break -> module 1 -> ... -> 'done'
-  const [stage, setStage] = useState<"intro" | "module" | "break" | "submitting" | "done">("intro");
+  const [stage, setStage] = useState<Stage>("intro");
   const [moduleIdx, setModuleIdx] = useState(0);
-  const moduleIdxRef = useRef(moduleIdx);
-  moduleIdxRef.current = moduleIdx;
+  const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const current = MODULES[moduleIdx];
-  const currentQs = byModule[current.key];
+  const moduleIdxRef = useRef(moduleIdx);
+  moduleIdxRef.current = moduleIdx;
 
-  // Timer
-  useEffect(() => {
-    if (stage !== "module") return;
-    if (secondsLeft <= 0) {
-      advanceModule();
+  const currentModule = MODULES[moduleIdx];
+  const currentQs = byModule[currentModule.key];
+  const totalQs = currentQs.length;
+  const answeredCount = currentQs.filter((q) => answers[q.questions.id] !== undefined).length;
+  const allAnswered = answeredCount === totalQs;
+
+  const advanceModule = useCallback(() => {
+    const idx = moduleIdxRef.current;
+    if (idx === 1) {
+      setStage("break");
       return;
     }
-    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, secondsLeft]);
+    if (idx >= 3) {
+      setShowConfirm(true);
+      return;
+    }
+    const next = idx + 1;
+    setModuleIdx(next);
+    setCurrentQ(0);
+    setSecondsLeft(MODULES[next].minutes * 60);
+    setStage("module");
+  }, []);
+
+  const timerEffect = useCallback(() => {
+    if (secondsLeft <= 0) {
+      advanceModule();
+      return false;
+    }
+    return true;
+  }, [secondsLeft, advanceModule]);
+
+  useEffect(() => {
+    if (stage !== "module") return;
+    const ok = timerEffect();
+    if (!ok) return;
+    const id = setInterval(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [stage, timerEffect]);
 
   function startMock() {
     if (!items || items.length === 0) {
@@ -107,40 +134,33 @@ function TakeMock() {
     }
     setStartedAt(Date.now());
     setModuleIdx(0);
+    setCurrentQ(0);
     setSecondsLeft(MODULES[0].minutes * 60);
     setStage("module");
   }
 
-  function advanceModule() {
-    const idx = moduleIdxRef.current;
-    if (idx === 1) {
-      setStage("break");
-      return;
-    }
-    if (idx >= 3) {
-      void finalize();
-      return;
-    }
-    const next = idx + 1;
-    setModuleIdx(next);
-    setSecondsLeft(MODULES[next].minutes * 60);
+  function endBreak() {
+    setModuleIdx(2);
+    setCurrentQ(0);
+    setSecondsLeft(MODULES[2].minutes * 60);
     setStage("module");
   }
 
-  function endBreak() {
-    const next = 2;
-    setModuleIdx(next);
-    setSecondsLeft(MODULES[next].minutes * 60);
-    setStage("module");
+  function goToQuestion(idx: number) {
+    setCurrentQ(Math.max(0, Math.min(idx, totalQs - 1)));
+  }
+
+  function selectAnswer(questionId: string, choiceIdx: number) {
+    setAnswers((a) => ({ ...a, [questionId]: choiceIdx }));
   }
 
   async function finalize() {
     setStage("submitting");
+    setShowConfirm(false);
     const all = items ?? [];
 
-    // Fetch correct answers server-side (requires signed-in user via RLS)
     const qIds = all.map((it) => it.questions.id);
-    const { data: answerRows2, error: ansErr } = qIds.length
+    const { data: answerRows, error: ansErr } = qIds.length
       ? await supabase.from("questions").select("id, correct_index").in("id", qIds)
       : { data: [], error: null as any };
     if (ansErr) {
@@ -149,22 +169,17 @@ function TakeMock() {
       return;
     }
     const correctMap = new Map<string, number>();
-    for (const r of (answerRows2 ?? []) as { id: string; correct_index: number }[]) {
+    for (const r of (answerRows ?? []) as { id: string; correct_index: number }[]) {
       correctMap.set(r.id, r.correct_index);
     }
 
-    // Per-module tallies for SAT scaling
     const rwCorrect = { n: 0, total: 0 };
     const mathCorrect = { n: 0, total: 0 };
 
     let correctCount = 0;
     let score = 0;
     let max = 0;
-    const answerRows: {
-      question_id: string;
-      selected_index: number | null;
-      is_correct: boolean;
-    }[] = [];
+    const answerRowsInsert: { question_id: string; selected_index: number | null; is_correct: boolean }[] = [];
     for (const it of all) {
       max += it.questions.points;
       const sel = answers[it.questions.id];
@@ -178,8 +193,7 @@ function TakeMock() {
       const bucket = isMath ? mathCorrect : rwCorrect;
       bucket.total += 1;
       if (ok) bucket.n += 1;
-
-      answerRows.push({
+      answerRowsInsert.push({
         question_id: it.questions.id,
         selected_index: sel ?? null,
         is_correct: ok,
@@ -187,7 +201,6 @@ function TakeMock() {
     }
     const timeTaken = startedAt ? Math.round((Date.now() - startedAt) / 1000) : null;
 
-    // SAT scaling — linear approximation, 200–800 per section
     const scaleSection = (n: number, total: number) =>
       total === 0 ? 200 : Math.round(200 + (n / total) * 600);
     const rwScaled = scaleSection(rwCorrect.n, rwCorrect.total);
@@ -216,35 +229,33 @@ function TakeMock() {
       }
       await supabase
         .from("attempt_answers")
-        .insert(answerRows.map((r) => ({ ...r, attempt_id: a.id })));
-      toast.success(
-        `SAT score: ${satScore} (RW ${rwScaled} / Math ${mathScaled}) — opening results.`,
-      );
+        .insert(answerRowsInsert.map((r) => ({ ...r, attempt_id: a.id })));
+      toast.success(`SAT score: ${satScore} (RW ${rwScaled} / Math ${mathScaled})`);
       navigate({ to: "/results/$attemptId", params: { attemptId: a.id } });
       return;
     }
 
-    // Anonymous: just show summary
-    toast.success(`Mock complete — SAT ${satScore} (RW ${rwScaled} / Math ${mathScaled}).`);
+    toast.success(`Mock complete — SAT ${satScore} (RW ${rwScaled} / Math ${mathScaled}). Sign in to save your score.`);
     setStage("done");
   }
 
+  // --- Intro stage ---
   if (!mock) {
     return (
       <>
         <SiteNav />
-        <div className="container mx-auto px-6 py-20">Loading…</div>
+        <div className="container mx-auto px-6 py-20 text-center text-muted-foreground">Loading…</div>
       </>
     );
   }
 
-  if (!mock.published) {
+  if (!mock.published || mock.kind !== "full_mock") {
     return (
       <>
         <SiteNav />
         <div className="container mx-auto max-w-md px-6 py-20 text-center">
           <p className="crest">Not available</p>
-          <h1 className="font-display text-3xl mt-3">This mock isn't published.</h1>
+          <h1 className="font-display text-3xl mt-3">This mock isn't available.</h1>
           <Button asChild variant="outline" className="mt-6">
             <Link to="/mocks">Back to mocks</Link>
           </Button>
@@ -254,56 +265,58 @@ function TakeMock() {
   }
 
   if (stage === "intro") {
+    const totalQCount = items?.length ?? 0;
     return (
       <>
         <SiteNav />
-        <main className="container mx-auto max-w-3xl px-6 py-14">
-          <p className="crest">Full Mock</p>
-          <h1 className="font-display text-4xl rule-gold mt-3">{mock.title}</h1>
-          {mock.description && <p className="mt-4 text-muted-foreground">{mock.description}</p>}
+        <main className="container mx-auto max-w-3xl px-6 py-14 animate-fade-in">
+          <p className="crest">Full Mock Test</p>
+          <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">{mock.title}</h1>
+          {mock.description && <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{mock.description}</p>}
 
-          <div className="mt-10 card-elegant p-6">
-            <p className="crest mb-3">Section timing</p>
-            <ul className="space-y-2 text-sm">
-              {MODULES.map((m, i) => (
-                <li key={m.key} className="flex justify-between border-b border-border/60 pb-2">
-                  <span>{m.label}</span>
-                  <span className="text-muted-foreground">
-                    {m.minutes} min · {byModule[m.key].length} questions
-                  </span>
-                  {i === 1 && <span />}
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-muted-foreground mt-4">
-              A 10-minute break is offered between Reading &amp; Writing and Math.
-            </p>
+          <div className="mt-8 space-y-4">
+            {MODULES.map((m, i) => {
+              const qs = byModule[m.key];
+              return (
+                <div key={m.key} className="card-elegant p-5 flex items-center justify-between">
+                  <div>
+                    <p className="font-serif text-base font-medium">{m.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{m.minutes} minutes</p>
+                  </div>
+                  <Badge variant="outline" className="border-accent/40 text-accent bg-accent/5 shrink-0">
+                    {qs.length} questions
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 card-elegant p-5 bg-accent/5 border-accent/20">
+            <p className="font-serif font-medium">A 10-minute break is offered between the Reading &amp; Writing and Math sections.</p>
+            {totalQCount > 0 && <p className="text-sm text-muted-foreground mt-1">{totalQCount} questions total across 4 modules.</p>}
           </div>
 
           {!user ? (
-            <div className="mt-8 card-elegant p-6">
-              <p className="font-display text-xl">Sign in to take this mock</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Mock tests are timed and scored — you need an account so your result counts toward
-                the leaderboard.
-              </p>
-              <Button asChild className="mt-5 bg-primary text-primary-foreground h-12 px-7">
+            <div className="mt-8 card-elegant p-6 text-center">
+              <p className="font-serif text-xl">Sign in to take this mock</p>
+              <p className="text-sm text-muted-foreground mt-1">Your score will be saved and you'll appear on the leaderboard.</p>
+              <Button asChild className="mt-5 bg-primary text-primary-foreground h-12 px-8 text-base">
                 <Link to="/auth">Sign in to begin</Link>
               </Button>
             </div>
           ) : itemsLoading ? (
-            <p className="mt-8 text-muted-foreground">Loading questions…</p>
+            <p className="mt-8 text-muted-foreground animate-pulse-soft">Loading questions…</p>
           ) : items && items.length > 0 ? (
             <Button
               onClick={startMock}
-              className="mt-8 bg-primary text-primary-foreground h-12 px-7"
+              className="mt-8 bg-primary text-primary-foreground h-13 px-10 text-base"
             >
               Begin mock
             </Button>
           ) : (
-            <div className="mt-8 card-elegant p-6">
-              <p className="font-display text-xl">This mock has no questions yet.</p>
-              <p className="text-sm text-muted-foreground mt-1">An administrator needs to attach questions.</p>
+            <div className="mt-8 card-elegant p-6 text-center">
+              <p className="font-serif text-xl">This mock has no questions yet.</p>
+              <p className="text-sm text-muted-foreground mt-1">An administrator needs to attach questions first.</p>
             </div>
           )}
         </main>
@@ -311,15 +324,21 @@ function TakeMock() {
     );
   }
 
+  // --- Break stage ---
   if (stage === "break") {
     return (
       <>
         <SiteNav />
-        <main className="container mx-auto max-w-2xl px-6 py-20 text-center">
-          <p className="crest">Section break</p>
-          <h1 className="font-display text-4xl rule-gold mt-3">Take a 10-minute break.</h1>
-          <p className="mt-4 text-muted-foreground">Math begins when you're ready.</p>
-          <Button onClick={endBreak} className="mt-8 bg-primary text-primary-foreground h-12 px-7">
+        <main className="container mx-auto max-w-2xl px-6 py-20 text-center animate-fade-in">
+          <p className="crest">Section Break</p>
+          <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">Take a 10-minute break.</h1>
+          <p className="mt-4 text-muted-foreground text-lg">The Math section begins when you're ready.</p>
+          <div className="mt-6 text-5xl font-display text-accent animate-pulse-soft">10:00</div>
+          <p className="text-xs text-muted-foreground mt-2 uppercase tracking-widest">Minutes</p>
+          <Button
+            onClick={endBreak}
+            className="mt-10 bg-primary text-primary-foreground h-13 px-10 text-base"
+          >
             Start Math — Module 1
           </Button>
         </main>
@@ -327,32 +346,32 @@ function TakeMock() {
     );
   }
 
+  // --- Submitting stage ---
   if (stage === "submitting") {
     return (
       <>
         <SiteNav />
-        <div className="container mx-auto px-6 py-20 text-center text-muted-foreground">
-          Scoring your mock…
+        <div className="container mx-auto px-6 py-20 text-center">
+          <div className="font-display text-2xl text-muted-foreground animate-pulse-soft">Scoring your mock…</div>
         </div>
       </>
     );
   }
 
+  // --- Done stage ---
   if (stage === "done") {
     return (
       <>
         <SiteNav />
-        <main className="container mx-auto max-w-2xl px-6 py-20 text-center">
-          <p className="crest">Mock complete</p>
-          <h1 className="font-display text-4xl rule-gold mt-3">Well sat.</h1>
-          <p className="mt-4 text-muted-foreground">
-            Sign in before your next attempt to save your score.
-          </p>
-          <div className="mt-8 flex gap-3 justify-center">
-            <Button asChild variant="outline">
+        <main className="container mx-auto max-w-2xl px-6 py-20 text-center animate-fade-in">
+          <p className="crest">Mock Complete</p>
+          <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">Well sat.</h1>
+          <p className="mt-4 text-muted-foreground text-lg">Sign in before your next attempt to save your score and climb the leaderboard.</p>
+          <div className="mt-10 flex gap-4 justify-center">
+            <Button asChild variant="outline" size="lg">
               <Link to="/mocks">More mocks</Link>
             </Button>
-            <Button asChild className="bg-primary text-primary-foreground">
+            <Button asChild size="lg" className="bg-primary text-primary-foreground">
               <Link to="/auth">Sign in</Link>
             </Button>
           </div>
@@ -361,90 +380,263 @@ function TakeMock() {
     );
   }
 
-  // stage === 'module'
-  const mins = Math.floor(secondsLeft / 60)
-    .toString()
-    .padStart(2, "0");
-  const secs = (secondsLeft % 60).toString().padStart(2, "0");
+  // --- Confirm submit overlay ---
+  if (showConfirm) {
+    const unanswered = totalQs - answeredCount;
+    return (
+      <>
+        <SiteNav />
+        <main className="container mx-auto max-w-lg px-6 py-20 text-center animate-fade-in">
+          <p className="crest">Submit mock?</p>
+          <h1 className="font-display text-3xl rule-gold mt-3">Are you ready to submit?</h1>
+          {unanswered > 0 ? (
+            <p className="mt-4 text-muted-foreground">
+              You have <span className="text-destructive font-medium">{unanswered}</span> unanswered question{unanswered === 1 ? "" : "s"} out of {totalQs}.
+            </p>
+          ) : (
+            <p className="mt-4 text-muted-foreground">All questions answered. Ready to see your score.</p>
+          )}
+          <div className="mt-10 flex gap-4 justify-center">
+            <Button variant="outline" size="lg" onClick={() => setShowConfirm(false)}>
+              Go back
+            </Button>
+            <Button size="lg" className="bg-primary text-primary-foreground" onClick={finalize}>
+              Yes, submit mock
+            </Button>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // --- Module stage ---
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const q = currentQs[currentQ];
+  const isLastModule = moduleIdx === 3;
 
   return (
     <>
       <SiteNav />
-      <main className="container mx-auto max-w-3xl px-6 py-10">
-        <div className="flex items-center justify-between sticky top-16 bg-background/95 backdrop-blur py-3 z-30 border-b border-border">
+      <main className="container mx-auto max-w-4xl px-4 md:px-6 py-6 animate-fade-in">
+        {/* Top bar: module info + timer */}
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
           <div>
             <p className="crest">Module {moduleIdx + 1} of 4</p>
-            <h2 className="font-display text-xl mt-1">{current.label}</h2>
+            <h2 className="font-serif text-lg font-medium mt-0.5">{currentModule.label}</h2>
           </div>
           <div className="text-right">
             <div
-              className={`font-display text-3xl tabular-nums ${secondsLeft < 60 ? "text-destructive" : ""}`}
+              className={cn(
+                "font-display text-3xl md:text-4xl tabular-nums tracking-tight",
+                secondsLeft < 60 ? "text-destructive animate-pulse-soft" : "",
+              )}
             >
-              {mins}:{secs}
+              {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
             </div>
-            <div className="text-xs text-muted-foreground uppercase tracking-widest">Time left</div>
+            <div className="crest mt-0.5">Time remaining</div>
           </div>
         </div>
 
-        {currentQs.length === 0 ? (
-          <p className="mt-10 text-muted-foreground">This module has no questions. Skipping…</p>
-        ) : (
-          <ol className="mt-8 space-y-8">
-            {currentQs.map((it, i) => {
-              const q = it.questions;
-              return (
-                <li key={it.id} className="card-elegant p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="outline" className="border-accent/40 text-accent bg-accent/5">
-                      Q{i + 1}
-                    </Badge>
-                  </div>
-                  {q.image_url && (
-                    <img
-                      src={q.image_url}
-                      alt="Question illustration"
-                      className="mb-4 max-h-64 w-full object-contain rounded border"
-                    />
-                  )}
-                  <p className="font-display text-lg leading-snug whitespace-pre-wrap">
-                    {q.prompt}
-                  </p>
-                  <div className="mt-5 space-y-2">
-                    {q.choices.map((c, idx) => {
-                      const picked = answers[q.id] === idx;
-                      return (
-                        <label
-                          key={idx}
-                          className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-colors ${picked ? "border-foreground" : "border-border hover:border-foreground/40"}`}
-                        >
-                          <input
-                            type="radio"
-                            name={q.id}
-                            checked={picked}
-                            onChange={() => setAnswers((a) => ({ ...a, [q.id]: idx }))}
-                            className="mt-1"
-                          />
-                          <span className="text-sm">
-                            <b>{String.fromCharCode(65 + idx)}.</b> {c}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
+        <div className="flex gap-8">
+          {/* Question grid sidebar */}
+          <aside className="hidden md:block w-48 shrink-0">
+            <div className="sticky top-24">
+              <p className="crest mb-3">
+                {answeredCount}/{totalQs} answered
+              </p>
+              <div className="grid grid-cols-5 gap-1.5">
+                {currentQs.map((it, i) => {
+                  const isAnswered = answers[it.questions.id] !== undefined;
+                  const isCurrent = i === currentQ;
+                  return (
+                    <button
+                      key={it.id}
+                      onClick={() => goToQuestion(i)}
+                      className={cn(
+                        "w-8 h-8 rounded text-xs font-medium transition-colors",
+                        isCurrent
+                          ? "bg-primary text-primary-foreground ring-2 ring-accent"
+                          : isAnswered
+                            ? "bg-accent/20 text-foreground border border-accent/40"
+                            : "bg-muted text-muted-foreground border border-border hover:border-accent/50",
+                      )}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
 
-        <div className="mt-10 flex justify-end">
-          <Button onClick={advanceModule} className="bg-primary text-primary-foreground h-12 px-7">
-            {moduleIdx === 3
-              ? "Submit mock"
-              : moduleIdx === 1
-                ? "End module — take break"
-                : "End module"}
-          </Button>
+              {/* Module progress */}
+              <div className="mt-6">
+                <p className="crest mb-2">Modules</p>
+                <div className="space-y-1.5">
+                  {MODULES.map((m, i) => (
+                    <div
+                      key={m.key}
+                      className={cn(
+                        "flex items-center gap-2 text-xs",
+                        i === moduleIdx ? "text-foreground font-medium" : i < moduleIdx ? "text-accent" : "text-muted-foreground",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium",
+                          i === moduleIdx
+                            ? "bg-primary text-primary-foreground"
+                            : i < moduleIdx
+                              ? "bg-accent/20 text-accent border border-accent/40"
+                              : "bg-muted text-muted-foreground border border-border",
+                        )}
+                      >
+                        {i < moduleIdx ? "✓" : i + 1}
+                      </div>
+                      {m.label.replace(" — Module " + (i + 1), "")}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* Question display */}
+          <section className="flex-1 min-w-0">
+            {q ? (
+              <div key={q.id} className="animate-slide-up">
+                {/* Question header */}
+                <div className="flex items-center gap-3 mb-5">
+                  <Badge variant="outline" className="border-accent/40 text-accent bg-accent/5 text-xs px-3">
+                    Question {currentQ + 1} of {totalQs}
+                  </Badge>
+                  {answers[q.questions.id] !== undefined && (
+                    <Badge variant="outline" className="border-correct/40 text-correct bg-correct/5 text-xs">
+                      Answered
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Image */}
+                {q.questions.image_url && (
+                  <img
+                    src={q.questions.image_url}
+                    alt="Question illustration"
+                    className="mb-5 max-h-72 w-full object-contain rounded-lg border border-border"
+                  />
+                )}
+
+                {/* Prompt - EB Garamond */}
+                <p className="font-question text-lg md:text-xl leading-relaxed whitespace-pre-wrap">
+                  {q.questions.prompt}
+                </p>
+
+                {/* Choices */}
+                <div className="mt-6 space-y-3">
+                  {q.questions.choices.map((c, idx) => {
+                    const picked = answers[q.questions.id] === idx;
+                    return (
+                      <label
+                        key={idx}
+                        className={cn(
+                          "flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all duration-150",
+                          picked
+                            ? "border-accent bg-accent/8 shadow-sm"
+                            : "border-border hover:border-accent/50 hover:bg-muted/30",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium shrink-0 transition-colors",
+                            picked
+                              ? "bg-accent text-accent-foreground"
+                              : "bg-muted text-muted-foreground border border-border",
+                          )}
+                        >
+                          {String.fromCharCode(65 + idx)}
+                        </div>
+                        <span className="font-question text-base md:text-lg leading-relaxed pt-1">
+                          {c}
+                        </span>
+                        <input
+                          type="radio"
+                          name={q.questions.id}
+                          checked={picked}
+                          onChange={() => selectAnswer(q.questions.id, idx)}
+                          className="sr-only"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Navigation */}
+                <div className="mt-8 flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={() => goToQuestion(currentQ - 1)}
+                    disabled={currentQ === 0}
+                    className="px-6"
+                  >
+                    ← Previous
+                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    {currentQ < totalQs - 1 ? (
+                      <Button
+                        onClick={() => goToQuestion(currentQ + 1)}
+                        className="bg-primary text-primary-foreground px-6"
+                      >
+                        Next →
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={advanceModule}
+                        className={cn(
+                          "px-8",
+                          isLastModule
+                            ? "bg-accent text-accent-foreground hover:opacity-90"
+                            : "bg-primary text-primary-foreground",
+                        )}
+                      >
+                        {isLastModule ? "Submit mock" : moduleIdx === 1 ? "End module — break" : "End module"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="card-elegant p-10 text-center">
+                <p className="font-serif text-xl text-muted-foreground">This module has no questions.</p>
+                <Button onClick={advanceModule} className="mt-6 bg-primary text-primary-foreground">
+                  Continue
+                </Button>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Mobile: progress bar at bottom */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border px-4 py-3 z-30">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+            <span>Question {currentQ + 1} of {totalQs}</span>
+            <span>{answeredCount} answered</span>
+          </div>
+          <div className="flex gap-1">
+            {currentQs.map((it, i) => (
+              <button
+                key={it.id}
+                onClick={() => goToQuestion(i)}
+                className={cn(
+                  "flex-1 h-1.5 rounded-full transition-colors",
+                  i === currentQ
+                    ? "bg-primary"
+                    : answers[it.questions.id] !== undefined
+                      ? "bg-accent/60"
+                      : "bg-muted",
+                )}
+              />
+            ))}
+          </div>
         </div>
       </main>
     </>

@@ -36,17 +36,19 @@
   --font-display: var(--font-display);
   --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
+  --font-question: var(--font-question);
+  --color-correct: var(--correct);
+  --color-incorrect: var(--incorrect);
 }
 
 :root {
   --radius: 0.5rem;
 
-  /* Scholarly Editorial palette */
   --cream: oklch(0.965 0.018 85);
   --ink: oklch(0.18 0.025 260);
 
-  --background: oklch(0.965 0.018 85);          /* warm cream */
-  --foreground: oklch(0.18 0.025 260);          /* deep navy ink */
+  --background: oklch(0.965 0.018 85);
+  --foreground: oklch(0.18 0.025 260);
 
   --card: oklch(0.985 0.012 85);
   --card-foreground: oklch(0.18 0.025 260);
@@ -54,7 +56,7 @@
   --popover: oklch(0.985 0.012 85);
   --popover-foreground: oklch(0.18 0.025 260);
 
-  --primary: oklch(0.24 0.06 260);              /* deep navy */
+  --primary: oklch(0.24 0.06 260);
   --primary-foreground: oklch(0.97 0.015 85);
 
   --secondary: oklch(0.92 0.022 85);
@@ -63,7 +65,7 @@
   --muted: oklch(0.93 0.018 85);
   --muted-foreground: oklch(0.42 0.025 260);
 
-  --accent: oklch(0.74 0.13 80);                /* warm gold */
+  --accent: oklch(0.74 0.13 80);
   --accent-foreground: oklch(0.18 0.03 260);
 
   --gold: oklch(0.74 0.13 80);
@@ -72,15 +74,21 @@
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.98 0.01 85);
 
+  --correct: oklch(0.55 0.15 145);
+  --incorrect: oklch(0.55 0.2 25);
+
   --border: oklch(0.84 0.02 85);
   --input: oklch(0.88 0.018 85);
   --ring: oklch(0.74 0.13 80);
 
-  --font-display: "EB Garamond", "Playfair Display", Georgia, serif;
+  --font-display: "Playfair Display", "EB Garamond", Georgia, serif;
   --font-serif: "EB Garamond", Georgia, serif;
-  --font-sans: "EB Garamond", "Inter", system-ui, -apple-system, sans-serif;
+  --font-question: "EB Garamond", Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
   --shadow-elegant: 0 30px 60px -30px oklch(0.24 0.06 260 / 0.35);
+  --shadow-card: 0 1px 3px oklch(0.24 0.06 260 / 0.06), 0 1px 2px oklch(0.24 0.06 260 / 0.04);
+  --shadow-card-hover: 0 10px 40px -15px oklch(0.24 0.06 260 / 0.25);
   --gradient-hero: radial-gradient(1200px 600px at 80% -10%, oklch(0.74 0.13 80 / 0.18), transparent 60%),
                    radial-gradient(900px 500px at -10% 10%, oklch(0.24 0.06 260 / 0.12), transparent 60%);
 }
@@ -102,6 +110,8 @@
   --accent-foreground: oklch(0.16 0.025 260);
   --destructive: oklch(0.6 0.2 25);
   --destructive-foreground: oklch(0.98 0.01 85);
+  --correct: oklch(0.55 0.15 145);
+  --incorrect: oklch(0.55 0.2 25);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.74 0.13 80);
@@ -114,16 +124,16 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, .font-display {
+h1, h2, h3, h4, h5, h6, .font-display {
   font-family: var(--font-display);
   font-optical-sizing: auto;
-  font-variation-settings: "opsz" 96, "SOFT" 50;
-  letter-spacing: -0.018em;
+  letter-spacing: -0.015em;
 }
 
 .hero-surface {
@@ -146,23 +156,24 @@ h1, h2, h3, .font-display {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 .card-elegant:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-elegant);
+  box-shadow: var(--shadow-card-hover);
   border-color: oklch(0.74 0.13 80 / 0.5);
 }
 
 .crest {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--muted-foreground);
 }
 
-/* Hide any Lovable preview badge if injected by external hosting */
 #lovable-badge,
 [data-lovable-watermark],
 [data-lovable-badge],
@@ -171,4 +182,31 @@ a[href*="lovable.dev"][target="_blank"] {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
 }
