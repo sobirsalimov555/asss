@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { SiteNav } from "@/components/site-nav";
+
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +66,6 @@ function SignInGate({ mockId }: { mockId: string }) {
 
   return (
     <>
-      <SiteNav />
       <main className="container mx-auto max-w-2xl px-6 py-20 text-center animate-fade-in">
         <p className="crest">Sign in required</p>
         <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">
@@ -205,7 +204,6 @@ function TakeMock() {
   if (authLoading) {
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto px-6 py-20 text-center text-muted-foreground animate-pulse-soft">
           Loading…
         </div>
@@ -349,7 +347,6 @@ function TakeMock() {
   if (mockLoading || (mock && itemsLoading))
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto px-6 py-20 text-center text-muted-foreground animate-pulse-soft">
           Loading…
         </div>
@@ -360,7 +357,6 @@ function TakeMock() {
   if (mockError)
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto max-w-md px-6 py-20 text-center">
           <p className="crest">Error</p>
           <h1 className="font-display text-3xl mt-3">Could not load mock</h1>
@@ -376,7 +372,6 @@ function TakeMock() {
   if (!mock)
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto max-w-md px-6 py-20 text-center">
           <p className="crest">Not found</p>
           <h1 className="font-display text-3xl mt-3">This mock doesn't exist.</h1>
@@ -391,7 +386,6 @@ function TakeMock() {
   if (!mock.published || mock.kind !== "full_mock")
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto max-w-md px-6 py-20 text-center">
           <p className="crest">Not available</p>
           <h1 className="font-display text-4xl mt-3">This mock isn't ready.</h1>
@@ -407,7 +401,6 @@ function TakeMock() {
   if (itemsError)
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto max-w-md px-6 py-20 text-center">
           <p className="crest">Error</p>
           <h1 className="font-display text-3xl mt-3">Questions unavailable</h1>
@@ -423,7 +416,6 @@ function TakeMock() {
   if (items && items.length === 0)
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto max-w-md px-6 py-20 text-center">
           <p className="crest">Empty</p>
           <h1 className="font-display text-4xl mt-3">No questions attached.</h1>
@@ -442,7 +434,6 @@ function TakeMock() {
     const totalQCount = items?.length ?? 0;
     return (
       <>
-        <SiteNav />
         <main className="container mx-auto max-w-3xl px-6 py-14 animate-fade-in">
           <p className="crest">Full Mock Test</p>
           <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">
@@ -522,7 +513,6 @@ function TakeMock() {
   if (stage === "break")
     return (
       <>
-        <SiteNav />
         <main className="container mx-auto max-w-2xl px-6 py-20 text-center animate-fade-in">
           <p className="crest">Section Break</p>
           <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">
@@ -545,7 +535,6 @@ function TakeMock() {
   if (stage === "submitting")
     return (
       <>
-        <SiteNav />
         <div className="container mx-auto px-6 py-20 text-center">
           <div className="font-display text-2xl text-muted-foreground animate-pulse-soft">
             Scoring your mock…
@@ -558,7 +547,6 @@ function TakeMock() {
   if (stage === "done")
     return (
       <>
-        <SiteNav />
         <main className="container mx-auto max-w-2xl px-6 py-20 text-center animate-fade-in">
           <p className="crest">Mock Complete</p>
           <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">
@@ -581,7 +569,6 @@ function TakeMock() {
     const unanswered = totalQs - answeredCount;
     return (
       <>
-        <SiteNav />
         <main className="container mx-auto max-w-lg px-6 py-20 text-center animate-fade-in">
           <p className="crest">Submit mock?</p>
           <h1 className="font-display text-3xl rule-gold mt-3">
@@ -630,7 +617,6 @@ function TakeMock() {
 
   return (
     <>
-      <SiteNav />
       <main className="container mx-auto max-w-4xl px-4 md:px-6 py-6 animate-fade-in">
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
           <div>

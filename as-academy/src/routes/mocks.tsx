@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteNav, SiteFooter } from "@/components/site-nav";
@@ -15,8 +15,24 @@ export const Route = createFileRoute("/mocks")({
       },
     ],
   }),
-  component: Mocks,
+  component: MocksLayout,
 });
+
+function MocksLayout() {
+  const matchRoute = useMatchRoute();
+  const isChild = matchRoute({ to: "/mocks/$mockId" });
+
+  if (isChild) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <SiteNav />
+        <Outlet />
+      </div>
+    );
+  }
+
+  return <Mocks />;
+}
 
 const MODULE_LABELS = [
   { key: "rw1", label: "RW Module 1", min: 32 },
