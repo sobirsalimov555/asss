@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteNav } from "@/components/site-nav";
 import { useAuth } from "@/hooks/use-auth";
@@ -50,9 +50,53 @@ type QuestionItem = {
   };
 };
 
+function SignInGate({ mockId }: { mockId: string }) {
+  const { data: mock } = useQuery({
+    queryKey: ["mock-meta", mockId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mock_tests")
+        .select("id, title, description, published, kind")
+        .eq("id", mockId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+  });
+
+  return (
+    <>
+      <SiteNav />
+      <main className="container mx-auto max-w-2xl px-6 py-20 text-center animate-fade-in">
+        <p className="crest">Sign in required</p>
+        <h1 className="font-display text-4xl md:text-5xl rule-gold mt-3">
+          {mock?.title ?? "Mock Test"}
+        </h1>
+        {mock?.description && (
+          <p className="mt-4 text-base text-muted-foreground">{mock.description}</p>
+        )}
+        <div className="mt-10 card-elegant p-8">
+          <p className="font-serif text-xl">Sign in to take this mock</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Your score will be saved and you'll appear on the leaderboard.
+          </p>
+          <div className="mt-6 flex gap-4 justify-center">
+            <Button asChild variant="outline" size="lg">
+              <Link to="/mocks">Back to mocks</Link>
+            </Button>
+            <Button asChild size="lg" className="bg-primary text-primary-foreground">
+              <Link to="/auth">Sign in</Link>
+            </Button>
+          </div>
+        </div>
+      </main>
+    </>
+  );
+}
+
 function TakeMock() {
   const { mockId } = Route.useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const {
@@ -140,7 +184,6 @@ function TakeMock() {
     }
   }
 
-  // Timer
   useEffect(() => {
     if (stage !== "module" || secondsLeft === null) return;
     if (secondsLeft <= 0) {
@@ -158,6 +201,21 @@ function TakeMock() {
     }, 1000);
     return () => clearInterval(id);
   }, [stage, secondsLeft]);
+
+  if (authLoading) {
+    return (
+      <>
+        <SiteNav />
+        <div className="container mx-auto px-6 py-20 text-center text-muted-foreground animate-pulse-soft">
+          Loading…
+        </div>
+      </>
+    );
+  }
+
+  if (!user) {
+    return <SignInGate mockId={mockId} />;
+  }
 
   function startMock() {
     if (!items || items.length === 0) {
@@ -256,43 +314,35 @@ function TakeMock() {
     const mathScaled = scaleSection(mathCorrect.n, mathCorrect.total);
     const satScore = rwScaled + mathScaled;
 
-    if (user) {
-      const { data: a, error } = await supabase
-        .from("attempts")
-        .insert({
-          user_id: user.id,
-          test_id: mockId,
-          score,
-          max_score: max,
-          correct_count: correctCount,
-          total_count: all.length,
-          time_taken_seconds: timeTaken,
-          sat_score: satScore,
-        } as any)
-        .select("id")
-        .single();
-      if (error) {
-        toast.error("Couldn't save result: " + error.message);
-        setStage("done");
-        return;
-      }
-      await supabase
-        .from("attempt_answers")
-        .insert(answerRowsInsert.map((r) => ({ ...r, attempt_id: a.id })));
-      toast.success(
-        `SAT score: ${satScore} (RW ${rwScaled} / Math ${mathScaled})`,
-      );
-      navigate({
-        to: "/results/$attemptId",
-        params: { attemptId: a.id },
-      });
+    const { data: a, error } = await supabase
+      .from("attempts")
+      .insert({
+        user_id: user.id,
+        test_id: mockId,
+        score,
+        max_score: max,
+        correct_count: correctCount,
+        total_count: all.length,
+        time_taken_seconds: timeTaken,
+        sat_score: satScore,
+      } as any)
+      .select("id")
+      .single();
+    if (error) {
+      toast.error("Couldn't save result: " + error.message);
+      setStage("done");
       return;
     }
-
+    await supabase
+      .from("attempt_answers")
+      .insert(answerRowsInsert.map((r) => ({ ...r, attempt_id: a.id })));
     toast.success(
-      `Mock complete — SAT ${satScore} (RW ${rwScaled} / Math ${mathScaled}). Sign in to save.`,
+      `SAT score: ${satScore} (RW ${rwScaled} / Math ${mathScaled})`,
     );
-    setStage("done");
+    navigate({
+      to: "/results/$attemptId",
+      params: { attemptId: a.id },
+    });
   }
 
   // Loading
@@ -453,9 +503,7 @@ function TakeMock() {
                 Ready to begin?
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {user
-                  ? "Your score will be saved when you finish."
-                  : "Sign in to save your score. You can still take the mock without an account."}
+                Your score will be saved when you finish.
               </p>
               <Button
                 onClick={startMock}
@@ -506,7 +554,7 @@ function TakeMock() {
       </>
     );
 
-  // --- Done ---
+  // --- Done (fallback if save failed) ---
   if (stage === "done")
     return (
       <>
@@ -517,19 +565,11 @@ function TakeMock() {
             Well sat.
           </h1>
           <p className="mt-4 text-muted-foreground text-lg">
-            Sign in before your next attempt to save your score and climb the
-            leaderboard.
+            Your result could not be saved. Please try again.
           </p>
           <div className="mt-10 flex gap-4 justify-center">
             <Button asChild variant="outline" size="lg">
               <Link to="/mocks">More mocks</Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              className="bg-primary text-primary-foreground"
-            >
-              <Link to="/auth">Sign in</Link>
             </Button>
           </div>
         </main>
@@ -817,8 +857,8 @@ function TakeMock() {
           </section>
         </div>
 
-          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border px-4 py-3 z-30">
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border px-4 py-3 z-30">
+          <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
             <span>
               Question {currentQ + 1} of {totalQs}
             </span>

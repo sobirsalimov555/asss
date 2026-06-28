@@ -69,7 +69,7 @@ function Mocks() {
         </h1>
         <p className="mt-4 text-muted-foreground max-w-2xl text-base leading-relaxed">
           Four modules, official SAT timing — Reading &amp; Writing 32+32 min, Math 35+35 min,
-          with a 10-minute break between sections. Sign in before starting to save your score.
+          with a 10-minute break between sections. Sign in required to take a mock — your score will be saved automatically.
         </p>
 
         {isLoading ? (
