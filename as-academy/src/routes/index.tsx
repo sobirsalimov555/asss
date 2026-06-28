@@ -76,11 +76,11 @@ function Index() {
         <div className="container mx-auto max-w-6xl px-6 py-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
             <p className="crest text-primary-foreground/60">Free to try</p>
-            <h3 className="font-display text-3xl mt-2">No account needed to practice or browse.</h3>
-            <p className="mt-2 text-primary-foreground/70 max-w-xl">Sign in only when you want results saved and a spot on the leaderboard.</p>
+            <h3 className="font-display text-3xl mt-2">Browse the practice bank without an account.</h3>
+            <p className="mt-2 text-primary-foreground/70 max-w-xl">Sign in to sit full-length mocks, save your scores, and climb the leaderboard.</p>
           </div>
           <Button asChild size="lg" className="bg-accent text-accent-foreground hover:opacity-90 h-12 px-7">
-            <Link to="/mocks">Pick a mock</Link>
+            <Link to="/practice">Open practice bank</Link>
           </Button>
         </div>
       </section>
