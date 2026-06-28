@@ -21,7 +21,7 @@ export function SiteNav() {
     <header className="border-b border-border/70 bg-background/80 backdrop-blur-sm sticky top-0 z-40">
       <div className="container mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2 group">
-          <img src="/logo.png" alt="AS Academy" className="h-32 w-32 rounded-sm object-contain" />
+          <img src="/logo.png" alt="AS Academy" className="h-16 w-16 rounded-sm object-contain" />
           <span className="font-display text-xl tracking-tight">
             AS <span className="text-accent">Academy</span>
           </span>
